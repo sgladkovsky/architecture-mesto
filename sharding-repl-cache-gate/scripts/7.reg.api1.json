@@ -1,0 +1,14 @@
+{
+  "ID": "svc-a1",
+  "Name": "svc-a",
+  "Tags": [
+    "pymongo_api1",
+    "v1"
+  ],
+  "Address": "'172.17.0.31'",
+  "Port": 8081,
+  "Weights": {
+    "Passing": 10,
+    "Warning": 1
+  }
+}

@@ -13,7 +13,7 @@ services:
       - "27017:27017"
     volumes:
       - cfg-data:/data/db
-      - ./scripts:/scripts
+      - ./scripts:/scripts1
     healthcheck:
       test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
       interval: 5s
@@ -32,7 +32,7 @@ services:
       - "27018:27017"
     volumes:
       - shard1-data:/data/db
-      - ./scripts:/scripts
+      - ./scripts:/scripts1
     healthcheck:
       test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
       interval: 5s
@@ -52,7 +52,7 @@ services:
       - "27019:27017"
     volumes:
       - shard2-data:/data/db
-      - ./scripts:/scripts
+      - ./scripts:/scripts2
     healthcheck:
       test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
       interval: 5s

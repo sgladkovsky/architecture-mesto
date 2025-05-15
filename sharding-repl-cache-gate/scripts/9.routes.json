@@ -1,0 +1,9 @@
+{
+  "id": "consul-web-route",
+  "uri": "/consul/web/*",
+  "upstream": {
+    "service_name": "svc-a",
+    "discovery_type": "consul",
+    "type": "roundrobin"
+  }
+}

@@ -1,4 +1,4 @@
-name: mongo-sharding-repl
+name: mongo-sharding-repl-cache-gate
 services:
   configSrv:
     container_name: configSrv
@@ -123,6 +123,14 @@ services:
       - "27025:27017"
     volumes:
       - ./scripts:/scripts
+
+    depends_on:
+      - mongo_shard1a
+      - mongo_shard1b
+      - mongo_shard1c
+      - mongo_shard2a
+      - mongo_shard2b
+      - mongo_shard2c
     command:  mongos --configdb config_server/configSrv:27017 --port 27017 -bind_ip_all
     healthcheck:
       test: ["CMD", "mongo", "--eval","db.adminCommand('ping')"]
@@ -136,43 +144,135 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:rw
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
     environment:
       REDIS_PASSWORD: "Aa123456"
 
-  pymongo_api:
-    container_name: pymongo_api
-    build: 
+  pymongo_api1:
+    container_name: pymongo_api1
+    build:
       context: api_app
       dockerfile: Dockerfile
     image: kazhem/pymongo_api:1.0.0
     depends_on:
       - configSrv
       - mongos_router
-      - mongo_shard1a
-      - mongo_shard1b
-      - mongo_shard1c
-      - mongo_shard2a
-      - mongo_shard2b
-      - mongo_shard2c
+    networks:
+      app-network:
+#        ipv4_address: 177.17.0.31
     ports:
-      - "8080:8080"
+      - "8081:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongos_router:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+      REDIS_URL: "redis://default:Aa12345678@redis:6379"
+
+  pymongo_api2:
+    container_name: pymongo_api2
+    build:
+      context: api_app
+      dockerfile: Dockerfile
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - configSrv
+      - mongos_router
+    networks:
+      app-network:
+#        ipv4_address: 177.17.0.32
+    ports:
+      - "8082:8080"
     environment:
       MONGODB_URL: "mongodb://mongos_router:27017"
       MONGODB_DATABASE_NAME: "somedb"
       REDIS_URL: "redis://default:Aa12345678@redis:6379"
 
 
+  apisix:
+    image: apache/apisix:${APISIX_IMAGE_TAG:-3.12.0-debian}
+    restart: always
+    volumes:
+      - type: bind
+        source: ./apisix_conf/config.yaml
+        target: /usr/local/apisix/conf/config.yaml
+    depends_on:
+      - etcd
+    ##network_mode: host
+    ports:
+      - "9180:9180/tcp"
+      - "9080:9080/tcp"
+      - "9091:9091/tcp"
+      - "9443:9443/tcp"
+      - "9092:9092/tcp"
+    networks:
+      apisix:
+
+  etcd:
+    image: bitnami/etcd:3.5.11
+    restart: always
+    volumes:
+      - etcd_data:/bitnami/etcd
+    environment:
+      ETCD_ENABLE_V2: "true"
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
+      ETCD_LISTEN_CLIENT_URLS: "http://0.0.0.0:2379"
+    ports:
+      - "2379:2379/tcp"
+    networks:
+      apisix:
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./t.t:/etc/prometheus/t1.t1
+      #- ./data/:/prometheus/
+    container_name: prometheus
+    hostname: prometheus
+    #command:
+    #  - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    environment:
+      TZ: "Europe/Moscow"
+    networks:
+      apisix:
+
+  grafana:
+      image: grafana/grafana:7.3.7
+      restart: always
+      ports:
+        - "3000:3000"
+      volumes:
+        - ./grafana_conf/provisioning:/etc/grafana1/provisioning
+        - ./grafana_conf/dashboards:/var/lib/grafana1/dashboards
+        - ./grafana_conf/config:/etc/grafana1
+      networks:
+        apisix:
+
+  consul:
+    image: consul:1.15.1
+    container_name: consul
+    restart: always
+    networks:
+      - apisix
+    ports:
+      - '8500:8500'
+    command: 'agent -server -bootstrap-expect=1 -node=agent-one -client 0.0.0.0 -log-level info -data-dir=/consul/data -enable-script-checks'
+
 
 
 networks:
+  apisix:
+    driver: bridge
   app-network:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 177.17.0.0/16
+#    ipam:
+#      driver: default
+#      config:
+#        - subnet: 177.17.0.0/16
+#          gateway: 177.17.0.1
 
 volumes:
   cfg-data: {}
@@ -183,3 +283,6 @@ volumes:
   shard1c-data: { }
   shard2c-data: { }
   redis_data: {}
+  etcd_data:
+    driver: local
+  prometheus_data: {}
