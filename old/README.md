@@ -12,7 +12,7 @@
       - 27017:27017
 ```
 
-![img.png](docs/images/img.png)
+![img.png](../docs/images/img.png)
 
 ### Заполнение данными
 Для заполнения данными необходимо было выполнить скрипт с ../scripts/mongo-init.sh
@@ -40,7 +40,7 @@ db.getSiblingDB("somedb").getCollection("helloDoc").find()
 ```
 
 Как вариант можно подключиться в плагине pycharm и найти необходимую коллекцию
-![check.png](docs/images/check.png)
+![check.png](../docs/images/check.png)
 
 
 ## Шардирование
