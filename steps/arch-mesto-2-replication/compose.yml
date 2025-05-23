@@ -1,0 +1,138 @@
+name: arch-mesto-2
+services:
+  configSrv:
+    container_name: configSrv
+    image: mongo
+    command: mongod --configsvr --replSet config_server --bind_ip_all --port 27017 --dbpath /data/db
+    restart: always
+    networks:
+      app-db:
+    ports:
+      - "27017:27017"
+    volumes:
+      - cfg-data:/data/db
+
+  mongo_shard1a:
+    container_name: mongo_shard1a
+    image: mongo
+    command: mongod --shardsvr --replSet shard1rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27041:27017"
+    volumes:
+      - shard1a-data:/data/db
+
+  mongo_shard1b:
+    container_name: mongo_shard1b
+    image: mongo
+    command: mongod --shardsvr --replSet shard1rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27042:27017"
+    volumes:
+      - shard1b-data:/data/db
+
+  mongo_shard1c:
+    container_name: mongo_shard1c
+    image: mongo
+    command: mongod --shardsvr --replSet shard1rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27043:27017"
+    volumes:
+      - shard1c-data:/data/db
+
+
+  mongo_shard2a:
+    container_name: mongo_shard2a
+    image: mongo
+    command: mongod --shardsvr --replSet shard2rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27051:27017"
+    volumes:
+      - shard2a-data:/data/db
+
+  mongo_shard2b:
+    container_name: mongo_shard2b
+    image: mongo
+    command: mongod --shardsvr --replSet shard2rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27052:27017"
+    volumes:
+      - shard2b-data:/data/db
+
+
+  mongo_shard2c:
+    container_name: mongo_shard2c
+    image: mongo
+    command: mongod --shardsvr --replSet shard2rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27053:27017"
+    volumes:
+      - shard2c-data:/data/db
+
+  mongo_router:
+    container_name: mongos_router
+    image: mongo
+    depends_on:
+      - configSrv
+      - mongo_shard1a
+      - mongo_shard1b
+      - mongo_shard1c
+      - mongo_shard2a
+      - mongo_shard2b
+      - mongo_shard2c
+    restart: always
+    ports:
+      - "27020:27017"
+    networks:
+      app-db:
+    command:  mongos --configdb config_server/configSrv:27017 --port 27017 -bind_ip_all
+
+  pymongo_api:
+    container_name: pymongo_api
+    build:
+      context: ..\..\api_app
+      dockerfile: Dockerfile
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - configSrv
+      - mongo_router
+    networks:
+      app-db:
+    ports:
+      - "8080:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongo_router:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+
+
+networks:
+  app-network:
+    driver: bridge
+  app-db:
+    driver: bridge
+
+volumes:
+  cfg-data: {}
+  shard1a-data: {}
+  shard1b-data: {}
+  shard1c-data: { }
+  shard2a-data: { }
+  shard2b-data: { }
+  shard2c-data: { }

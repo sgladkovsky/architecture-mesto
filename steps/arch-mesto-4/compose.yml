@@ -1,0 +1,223 @@
+name: arch-mesto-2
+services:
+  configSrv:
+    container_name: configSrv
+    image: mongo
+    command: mongod --configsvr --replSet config_server --bind_ip_all --port 27017 --dbpath /data/db
+    restart: always
+    networks:
+      app-db:
+    ports:
+      - "27017:27017"
+    volumes:
+      - cfg-data:/data/db
+
+  mongo_shard1a:
+    container_name: mongo_shard1a
+    image: mongo
+    command: mongod --shardsvr --replSet shard1rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27041:27017"
+    volumes:
+      - shard1a-data:/data/db
+
+  mongo_shard1b:
+    container_name: mongo_shard1b
+    image: mongo
+    command: mongod --shardsvr --replSet shard1rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27042:27017"
+    volumes:
+      - shard1b-data:/data/db
+
+  mongo_shard1c:
+    container_name: mongo_shard1c
+    image: mongo
+    command: mongod --shardsvr --replSet shard1rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27043:27017"
+    volumes:
+      - shard1c-data:/data/db
+
+
+  mongo_shard2a:
+    container_name: mongo_shard2a
+    image: mongo
+    command: mongod --shardsvr --replSet shard2rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27051:27017"
+    volumes:
+      - shard2a-data:/data/db
+
+  mongo_shard2b:
+    container_name: mongo_shard2b
+    image: mongo
+    command: mongod --shardsvr --replSet shard2rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27052:27017"
+    volumes:
+      - shard2b-data:/data/db
+
+
+  mongo_shard2c:
+    container_name: mongo_shard2c
+    image: mongo
+    command: mongod --shardsvr --replSet shard2rs --bind_ip_all --port 27017 --dbpath /data/db
+
+    networks:
+      app-db:
+    ports:
+      - "27053:27017"
+    volumes:
+      - shard2c-data:/data/db
+
+  mongo_router:
+    container_name: mongos_router
+    image: mongo
+    depends_on:
+      - configSrv
+      - mongo_shard1a
+      - mongo_shard1b
+      - mongo_shard1c
+      - mongo_shard2a
+      - mongo_shard2b
+      - mongo_shard2c
+    restart: always
+    ports:
+      - "27020:27017"
+    networks:
+      app-db:
+    command: mongos --configdb config_server/configSrv:27017 --port 27017 -bind_ip_all
+
+  redis:
+    image: "redis:latest"
+    container_name: redis
+    networks:
+      app-db:
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:rw
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    environment:
+      REDIS_PASSWORD: "Aa123456"
+
+  pymongo_api1:
+    container_name: pymongo_api1
+    build:
+      context: ..\..\api_app
+      dockerfile: Dockerfile
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - configSrv
+      - mongo_router
+    networks:
+      app-db:
+        ipv4_address: 10.5.0.101
+    ports:
+      - "8081:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongo_router:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+      REDIS_URL: "redis://default:Aa12345678@redis:6379"
+
+  pymongo_api2:
+    container_name: pymongo_api2
+    build:
+      context: ..\..\api_app
+      dockerfile: Dockerfile
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      - configSrv
+      - mongo_router
+    networks:
+      app-db:
+        ipv4_address: 10.5.0.102
+    ports:
+      - "8082:8080"
+    environment:
+      MONGODB_URL: "mongodb://mongo_router:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+      REDIS_URL: "redis://default:Aa12345678@redis:6379"
+
+  consul:
+    image: consul:1.15.4
+    container_name: consul
+    restart: always
+    networks:
+      - app-db
+    ports:
+      - '8500:8500'
+    command: 'agent -server -bootstrap-expect=1 -node=agent-one -client 0.0.0.0 -log-level info -data-dir=/consul/data -enable-script-checks'
+    volumes:
+      - ./consul_conf/server.json:/consul/config/server1.json:ro
+
+  apisix:
+    image: apache/apisix:3.9.1-debian
+    restart: always
+    volumes:
+      - ./apisix_conf/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    depends_on:
+      - etcd
+    ports:
+      - "9180:9180/tcp"
+      - "9080:9080/tcp"
+      - "9091:9091/tcp"
+      - "9443:9443/tcp"
+      - "9092:9092/tcp"
+    networks:
+      app-db:
+
+  etcd:
+    image: bitnami/etcd:3.5.21
+    volumes:
+      - etcd_data:/bitnami/etcd
+    environment:
+      ETCD_ENABLE_V2: "true"
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
+      ETCD_LISTEN_CLIENT_URLS: "http://0.0.0.0:2379"
+
+    ports:
+      - "2379:2379/tcp"
+    networks:
+      app-db:
+
+networks:
+  app-db:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
+
+
+
+
+volumes:
+  cfg-data: { }
+  shard1a-data: { }
+  shard1b-data: { }
+  shard1c-data: { }
+  shard2a-data: { }
+  shard2b-data: { }
+  shard2c-data: { }
+  redis-data: { }
+  etcd_data:
+    driver: local
