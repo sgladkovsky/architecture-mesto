@@ -1,0 +1,7 @@
+{
+  "node_name": "consul-server1",
+  "server": true,
+  "addresses": {
+    "http": "0.0.0.0"
+  }
+}
